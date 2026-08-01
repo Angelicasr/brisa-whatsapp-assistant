@@ -6,7 +6,7 @@ app.use(express.json());
 const WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN;
 const PHONE_NUMBER_ID = process.env.PHONE_NUMBER_ID;
 const VERIFY_TOKEN = process.env.VERIFY_TOKEN;
-const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
 const SYSTEM_PROMPT = `Eres Brisa, la asistente virtual de WhatsApp de un negocio. Responde en mensajes cortos (1 a 3 lineas), recomienda en vez de listar todo, confirma antes de cobrar, y si no sabes algo ofrece conectar con una persona.`;
 
@@ -31,25 +31,22 @@ app.post("/webhook", async (req, res) => {
   const from = message.from;
     const text = message.text?.body || "";
 
-  const anthropicRes = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": ANTHROPIC_API_KEY,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model: "claude-3-5-sonnet-20241022",
-      max_tokens: 300,
-      system: SYSTEM_PROMPT,
-      messages: [{ role: "user", content: text }],
-    }),
-  });
+  const geminiRes = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
+        contents: [{ role: "user", parts: [{ text }] }],
+      }),
+    }
+    );
 
-  const anthropicData = await anthropicRes.json();
-    console.log("Anthropic response:", JSON.stringify(anthropicData));
+  const geminiData = await geminiRes.json();
+    console.log("Gemini response:", JSON.stringify(geminiData));
 
-  const replyText = anthropicData.content?.[0]?.text || "Disculpa, tuve un problema para responder. Un miembro del equipo te contactara pronto.";
+  const replyText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || "Disculpa, tuve un problema para responder. Un miembro del equipo te contactara pronto.";
 
   const waRes = await fetch(`https://graph.facebook.com/v23.0/${PHONE_NUMBER_ID}/messages`, {
     method: "POST",
